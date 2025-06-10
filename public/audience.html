@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roger Send-off - Participate!</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- birds -->
+        <div class="bird-container bird-container--one">
+            <div class="bird bird--one"></div>
+        </div>
+        
+        <div class="bird-container bird-container--two">
+            <div class="bird bird--two"></div>
+        </div>
+        
+        <div class="bird-container bird-container--three">
+            <div class="bird bird--three"></div>
+        </div>
+        
+        <div class="bird-container bird-container--four">
+            <div class="bird bird--four"></div>
+        </div>
+
+
+        <div class="bird-container bird-container--five">
+            <div class="bird bird--five"></div>
+        </div>
+        
+        <div class="bird-container bird-container--six">
+            <div class="bird bird--six"></div>
+        </div>
+
+
+
+    <div class="container audience-container">
+        <h1>Congratulations Roger!</h1>
+        <p class="mobile-info-text" id="audienceInfo">Connect to join the celebration.</p>
+        <div class="slider-container" id="slider-container">
+            <div class="slider-track">
+                <div class="green-window" id="greenWindow"></div>
+                <div class="slider-bar" id="sliderBar"></div>
+            </div>
+        </div>
+        <div class="audience-controls">
+            <button class="action-button" id="tapButton"><span>Please Wait...</span></button>
+        </div>
+
+        <div class="status-indicator">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Connecting...</span>
+        </div>
+        <p id="mainDisplayStatusText" style="font-size: 0.9em; margin-top: 10px;"></p>
+        <p id="eventStatusText" style="font-size: 0.9em;"></p>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/audience.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roger Send-off</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+
+    <!-- <div class="container">
+    
+</div> -->
+
+    <div class="container">
+
+
+        <!-- birds -->
+        <div class="bird-container bird-container--one">
+            <div class="bird bird--one"></div>
+        </div>
+        
+        <div class="bird-container bird-container--two">
+            <div class="bird bird--two"></div>
+        </div>
+        
+        <div class="bird-container bird-container--three">
+            <div class="bird bird--three"></div>
+        </div>
+        
+        <div class="bird-container bird-container--four">
+            <div class="bird bird--four"></div>
+        </div>
+
+
+        <div class="bird-container bird-container--five">
+            <div class="bird bird--five"></div>
+        </div>
+        
+        <div class="bird-container bird-container--six">
+            <div class="bird bird--six"></div>
+        </div>
+
+
+        <div class="initial-content" id="initialContent">
+            <h1>We will miss you, Roger!</h1>
+            <img src="qr_code.png" alt="Scan to participate" class="qr-code" id="qrCode">
+            <p style="font-size: 1.5em; margin-top: 20px; color: #aaa;">Scan to join!</p>
+            <button class="button" id="startButton">Start Send-off!</button>
+        </div>
+
+        <div class="video-container" id="videoContainer">
+            <video id="displayVideo" disablepictureinpicture autoplay muted></video>
+        </div>
+
+        <div class="carousel-overlay" id="carouselOverlay">
+            <div class="carousel-content">
+                <h2 class="carousel-title" id="carouselTitle">Milestone Achieved!</h2>
+                <div class="carousel-slides" id="carouselSlides">
+                </div>
+                <button class="close-carousel-button" id="closeCarouselButton">X</button>
+            </div>
+        </div>
+        <div class="post-milestone-controls" id="postMilestoneControls">
+            <button class="button" id="showMilestoneButton">Show Milestone Again</button>
+            <button class="button" id="jumpToNextMilestoneButton">Jump to Next Milestone</button>
+        </div>
+        <div class="celebration-overlay" id="celebrationOverlay">
+            <h1 class="celebration-title">🎉 Congratulations, Roger! 🎉</h1>
+            <p class="celebration-message">Thank you for all the amazing memories!</p>
+        </div>
+        <div class="reset-button-container" id="resetButtonContainer">
+            <button class="button reset-button" id="resetButton">Reset Event</button>
+        </div>
+
+        <div class="status-indicator">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Connecting...</span>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
