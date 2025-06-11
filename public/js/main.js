@@ -119,7 +119,7 @@ function initializeAllPlayers() {
         modestbranding: 1, // Hide YouTube logo
         iv_load_policy: 3, // Hide video annotations
         showinfo: 0, // Hide video title and uploader info
-        origin: window.location.origin,
+        origin: "choreoapps.dev",//window.location.origin,
         vq: "hd1080", // Suggest 1080p
       },
       events: {
