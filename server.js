@@ -30,11 +30,7 @@ let eventEnded = false; // New flag for final celebration state
 
 // MVP2 & Milestone related
 const TOTAL_TAPS_REQUIRED = 100; // Total taps to complete video_b
-const MILESTONE_THRESHOLDS = [
-    Math.floor(TOTAL_TAPS_REQUIRED / 3),  // ~33 taps for M1
-    Math.floor(TOTAL_TAPS_REQUIRED * 2 / 3), // ~66 taps for M2
-    TOTAL_TAPS_REQUIRED // 100 taps for M3 (video_b complete)
-];
+const MILESTONE_THRESHOLDS = [25, 25, 25];
 let currentTapCount = 0; // Total taps received for video_b advancement
 let milestonesReachedStatus = [false, false, false]; // Tracks which milestone has been celebrated
 let isMilestoneCelebrationActive = false; // True when main display is showing a milestone carousel

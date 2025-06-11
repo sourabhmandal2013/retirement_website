@@ -35,8 +35,8 @@ let isEventEnded = false; // NEW: Track final event state
 let sliderAnimationId = null;
 let sliderDirection = 1; // 1 for right, -1 for left
 let sliderPosition = 0; // 0 to 1 (representing 0% to 100%)
-const sliderSpeed = 0.007; // Adjust for faster/slower oscillation
-const greenWindowWidth = 0.1; // 10%
+const sliderSpeed = 0.003; // Adjust for faster/slower oscillation
+const greenWindowWidth = 0.3; // 30%
 let greenWindowStart = 0; // Start position of the green window (0 to 1 - greenWindowWidth)
 
 function setRandomGreenWindow() {

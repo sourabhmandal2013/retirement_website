@@ -1,605 +1,609 @@
 // public/js/main.js
 const socket = io();
 
-const initialContent = document.getElementById('initialContent');
-const qrCode = document.getElementById('qrCode');
-const startButton = document.getElementById('startButton');
-const videoContainer = document.getElementById('videoContainer');
-const displayVideo = document.getElementById('displayVideo');
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const resetButtonContainer = document.getElementById('resetButtonContainer');
-const resetButton = document.getElementById('resetButton');
+// --- HTML Element References ---
+const initialContent = document.getElementById("initialContent");
+const qrCode = document.getElementById("qrCode");
+const startButton = document.getElementById("startButton");
+const videoContainer = document.getElementById("videoContainer");
+const statusDot = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
+const resetButtonContainer = document.getElementById("resetButtonContainer");
+const resetButton = document.getElementById("resetButton");
+const carouselOverlay = document.getElementById("carouselOverlay");
+const carouselTitle = document.getElementById("carouselTitle");
+const carouselSlides = document.getElementById("carouselSlides");
+const closeCarouselButton = document.getElementById("closeCarouselButton");
+const postMilestoneControls = document.getElementById("postMilestoneControls");
+const showMilestoneButton = document.getElementById("showMilestoneButton");
+const jumpToNextMilestoneButton = document.getElementById(
+  "jumpToNextMilestoneButton"
+);
+const celebrationOverlay = document.getElementById("celebrationOverlay");
+// Removed fadeOverlay as it's no longer needed in this strategy
 
-// Carousel Elements
-const carouselOverlay = document.getElementById('carouselOverlay');
-const carouselTitle = document.getElementById('carouselTitle');
-const carouselSlides = document.getElementById('carouselSlides');
-const closeCarouselButton = document.getElementById('closeCarouselButton');
+// --- Configuration ---
 
-// Post-Milestone Control Elements
-const postMilestoneControls = document.getElementById('postMilestoneControls');
-const showMilestoneButton = document.getElementById('showMilestoneButton');
-const jumpToNextMilestoneButton = document.getElementById('jumpToNextMilestoneButton');
-
-// Celebration Overlay
-const celebrationOverlay = document.getElementById('celebrationOverlay');
-
-// ** IMPORTANT: Configure your video paths here **
+// ** IMPORTANT: Configure your YouTube Video IDs here **
 const videoA_paths = [
-    'videos/video_a_1.webm',
-    'videos/video_a_2.webm',
-    'videos/video_a_3.webm',
+  "y1zjk20NP4I", // Example: YouTube Video ID a1
+  "FyW2q0oxbwY", // Example: YouTube Video ID a2
+  "XHHMsFFBZok", // Example: YouTube Video ID a3
 ];
 const videoB_paths = [
-    'videos/video_b_1.webm',
-    'videos/video_b_2.webm',
-    // Add more video_b if desired for random selection
+  "dSJucwwoQe4", // Example: YouTube Video ID b1
+  "U-53V1aEzxM", // Example: YouTube Video ID b2
 ];
 
 // ** IMPORTANT: Configure your milestone image paths here **
 const milestoneImages = {
-    0: [ // Milestone 1 images (index 0)
-        'milestone1/image1.jpg',
-        'milestone1/image2.jpg',
-        'milestone1/image3.jpg',
-    ],
-    1: [ // Milestone 2 images (index 1)
-        'milestone2/image1.jpg',
-        'milestone2/image2.jpg',
-        'milestone2/image3.jpg',
-    ],
-    2: [ // Milestone 3 images (index 2) - final
-        'milestone3/image1.jpg',
-        'milestone3/image2.jpg',
-        'milestone3/image3.jpg'
-    ]
+  0: [
+    "milestone1/image1.jpg",
+    "milestone1/image2.jpg",
+    "milestone1/image3.jpg",
+  ],
+  1: [
+    "milestone2/image1.jpg",
+    "milestone2/image2.jpg",
+    "milestone2/image3.jpg",
+  ],
+  2: [
+    "milestone3/image1.jpg",
+    "milestone3/image2.jpg",
+    "milestone3/image3.jpg",
+  ],
 };
 
 const milestoneHeadings = [
-    "Graduated from somewhere",
-    "Went for some roadtrip",
-    "Became owner of a big blue building",
+  "Graduated from somewhere",
+  "Went for some roadtrip",
+  "Became owner of a big blue building",
 ];
 
+// Timings and behavior
+const CAROUSEL_SLIDE_DURATION = 3000; // ms for each carousel slide
+const TAP_TIMEOUT_DURATION = 3000; // 3 seconds of inactivity before switching to Video A
+// FADE_TRANSITION_DURATION is no longer relevant
 
-// --- NEW CONFIGURATION FOR TAP-CONTROLLED PLAYBACK ---
-const CAROUSEL_SLIDE_DURATION = 3000; // Time each slide stays on screen in carousel (in ms)
-const TAP_TIMEOUT_DURATION = 1000; // 1 seconds: If no taps for this duration, switch to video_a
-const VIDEO_B_PLAY_DURATION = 2000; // 2 seconds: This value is no longer used for segment pausing, kept for consistency
-// ---------------------------------------------------
-
-let currentVideoA = null; // Currently playing video A path
-let currentVideoB = null; // Currently playing video B path (the one intended to be played)
-let lastPickedVideoA = null; // Tracks last video A to avoid immediate repetition
-let lastPickedVideoB = null; // Tracks last video B to avoid immediate repetition (for when picking a *new* one)
+// --- State Variables ---
+let currentVideoA_Id = null;
+let currentVideoB_Id = null;
+let lastPickedVideoA_Id = null;
+let lastPickedVideoB_Id = null;
 
 let isEventStarted = false;
-let isEventEnded = false; // Track final event state
-let isMilestoneDisplaying = false; // Flag to control video advancement during carousel
-let currentCarouselSlideIndex = 0;
+let isEventEnded = false;
+let isMilestoneDisplaying = false;
+let lastTriggeredMilestoneIndex = -1;
 let carouselInterval;
-let lastTriggeredMilestoneIndex = -1; // To know which milestone to show again
+let tapTimeout = null;
 
-let tapTimeout = null; // Timeout for inactivity (switches to video_a)
-let isFallbackToVideoA = false; // Flag to indicate if video_a is playing due to inactivity
-
-// Keep track of milestone thresholds on client for button logic
+let clientMilestonesReachedStatus = [false, false, false];
 const MILESTONE_THRESHOLDS = [33, 66, 100]; // Must match server.js
-let clientMilestonesReachedStatus = [false, false, false]; // To enable/disable jump button
 
-// --- Helper function to pick a random video, avoiding the last one ---
-function pickRandomVideo(videoPaths, lastPicked) {
-    if (!videoPaths || videoPaths.length === 0) {
-        console.warn('No video paths provided.');
-        return null;
-    }
-    if (videoPaths.length === 1) {
-        return videoPaths[0]; // If only one option, just return it
+// --- YouTube Player Variables ---
+const players = new Map(); // Stores all YT.Player instances keyed by videoId
+let activeVideoId = null; // Tracks the currently visible video ID
+
+/**
+ * Initializes all YouTube players for seamless switching.
+ * This is called once when the YouTube Iframe API is ready.
+ */
+function initializeAllPlayers() {
+  console.log("Initializing all YouTube players...");
+  // Combine all unique video IDs from both A and B lists
+  const uniqueVideoIds = [...new Set([...videoA_paths, ...videoB_paths])];
+
+  uniqueVideoIds.forEach((videoId) => {
+    const playerDivId = `player-${videoId}`;
+    const playerDiv = document.getElementById(playerDivId);
+
+    if (!playerDiv) {
+      console.error(
+        `Player div with ID ${playerDivId} not found. Please ensure all video IDs from videoA_paths and videoB_paths have corresponding player divs in main.html.`
+      );
+      return;
     }
 
-    let newVideo;
-    let attempts = 0;
-    do {
-        const randomIndex = Math.floor(Math.random() * videoPaths.length);
-        newVideo = videoPaths[randomIndex];
-        attempts++;
-    } while (newVideo === lastPicked && attempts < 10); // Limit attempts to avoid infinite loop if options are exhausted (though unlikely here)
+    const player = new YT.Player(playerDivId, {
+      height: "100%",
+      width: "100%",
+      videoId: videoId,
+      playerVars: {
+        playsinline: 1,
+        autoplay: 1, // Autoplay to keep videos playing in background
+        controls: 0, // No controls
+        disablekb: 1,
+        fs: 0,
+        rel: 0, // Do not show related videos
+        modestbranding: 1, // Hide YouTube logo
+        iv_load_policy: 3, // Hide video annotations
+        showinfo: 0, // Hide video title and uploader info
+        origin: window.location.origin,
+        vq: "hd1080", // Suggest 1080p
+      },
+      events: {
+        onReady: (event) => {
+          console.log(`Player for ${videoId} is ready.`);
+          event.target.mute(); // Mute all players initially
+          // Start playing to buffer and keep them ready in the background
+          event.target.setPlaybackQuality("hd1080");
+          event.target.playVideo();
+          //.catch(err => {
+          // Autoplay might be prevented on some browsers initially, which is fine
+          // as we only unmute the active one.
+          //  console.warn(`Autoplay prevented for ${videoId} (initial buffer):`, err);
+          //  });
+        },
+        onStateChange: (event) => {
+          // Loop videos when they end
+          if (event.data !== "hd1080") {
+            event.target.setPlaybackQuality("hd1080");
+          }
+          if (event.data === YT.PlayerState.ENDED) {
+            event.target.playVideo();
+          }
+        },
+        onError: (event) => {
+          console.error(`Youtubeer Error for ${videoId}:`, event.data);
+          // Implement error handling, e.g., try next video or show a message
+        },
+      },
+    });
+    players.set(videoId, player); // Store the player instance
+  });
 
-    if (attempts >= 10) {
-        console.warn('Failed to pick a different video after multiple attempts. Picking a random one regardless.');
+  // After all players are initialized, play the initial idle video (Video A)
+  // This is delayed slightly to ensure all iframes have had a chance to render.
+  setTimeout(() => {
+    if (!isEventStarted) {
+      playRandomVideoA(); // Play initial random A video
     }
-    return newVideo;
+  }, 700); // Give a bit more time for all players to load and buffer
 }
 
-// --- Video Playback Functions ---
+/**
+ * This function is the entry point, called automatically by the YouTube Iframe API script
+ * when it finishes loading. It's responsible for creating the video player.
+ */
+function onYouTubeIframeAPIReady() {
+  console.log("YouTube Iframe API is ready. Initializing player pool.");
+  initializeAllPlayers();
+}
+
+/**
+ * Manages the visibility and audio of the players for seamless switching.
+ * @param {string} newVideoId - The video ID to make active.
+ * @param {boolean} shouldUnmute - True if the new video should be unmuted.
+ */
+function switchVideoVisibility(newVideoId, shouldUnmute) {
+  if (activeVideoId === newVideoId) {
+    // If trying to switch to the same video, just ensure it's playing and mute/unmute
+    const activePlayer = players.get(activeVideoId);
+    if (activePlayer) {
+      activePlayer.playVideo();
+      //.catch(err => console.warn("Autoplay was prevented:", err));
+      if (shouldUnmute) activePlayer.unMute();
+      else activePlayer.mute();
+    }
+    return;
+  }
+
+  // Hide current active video
+  if (activeVideoId) {
+    const currentActivePlayerDiv = document.getElementById(
+      `player-${activeVideoId}`
+    );
+    if (currentActivePlayerDiv) {
+      currentActivePlayerDiv.classList.remove("active");
+    }
+    const currentActivePlayer = players.get(activeVideoId);
+    if (currentActivePlayer) {
+      currentActivePlayer.mute(); // Mute the video being hidden
+    }
+  }
+
+  // Show and unmute new video
+  const newPlayerDiv = document.getElementById(`player-${newVideoId}`);
+  if (newPlayerDiv) {
+    newPlayerDiv.classList.add("active");
+  }
+  const newPlayer = players.get(newVideoId);
+  if (newPlayer) {
+    // if (shouldUnmute) newPlayer.unMute();
+    // else newPlayer.mute(); // Ensure it's muted if requested
+    newPlayer.playVideo();
+    //.catch(err => console.warn("Autoplay was prevented for new video:", err));
+  }
+
+  activeVideoId = newVideoId;
+  console.log(`Switched active video to: ${activeVideoId}`);
+}
+
+function pickRandomVideo(videoPaths, lastPicked) {
+  if (!videoPaths || videoPaths.length === 0) return null;
+  if (videoPaths.length === 1) return videoPaths[0];
+
+  let newVideo;
+  do {
+    newVideo = videoPaths[Math.floor(Math.random() * videoPaths.length)];
+  } while (newVideo === lastPicked);
+  return newVideo;
+}
 
 function playRandomVideoA() {
-    if (isEventEnded) {
-        console.log("playRandomVideoA: Event ended, not playing A.");
-        return;
-    }
+  if (isEventEnded) return;
 
-    const newVideoA = pickRandomVideo(videoA_paths, lastPickedVideoA);
-    if (!newVideoA) {
-        console.warn("playRandomVideoA: No new video A selected.");
-        return;
-    }
+  const newVideoId = pickRandomVideo(videoA_paths, lastPickedVideoA_Id);
+  if (!newVideoId) {
+    console.warn("No new Video A available.");
+    return;
+  }
 
-    if (displayVideo.src !== newVideoA) { // Only change if different
-        displayVideo.src = newVideoA;
-        displayVideo.load();
-        lastPickedVideoA = newVideoA;
-        currentVideoA = newVideoA; // Explicitly track current video A
-        console.log(`playRandomVideoA: Setting video A src to ${newVideoA}`);
-    } else {
-        console.log(`playRandomVideoA: Video A src already ${newVideoA}.`);
-    }
-
-    displayVideo.loop = true;
-    displayVideo.muted = true; // Always muted for A
-    displayVideo.play().catch(error => {
-        console.warn('Autoplay prevented for video A. User interaction might be required. Error:', error);
-    });
-    console.log(`Playing Video A: ${newVideoA}`);
-    stopTapTimeout(); // No tap timeout needed for video A when A is intentionally playing
+  switchVideoVisibility(newVideoId, true); // true = unmute (Video A is background ambience)
+  lastPickedVideoA_Id = newVideoId;
+  currentVideoA_Id = newVideoId;
+  currentVideoB_Id = null; // We are now on a Video A
+  stopTapTimeout();
 }
 
-/**
- * Gets a new random video B path, ensuring it's different from the last one played.
- * Updates lastPickedVideoB.
- * @returns {string|null} The path to the new video B, or null if none available.
- */
 function getNewRandomVideoBPath() {
-    const newVideoB = pickRandomVideo(videoB_paths, lastPickedVideoB);
-    if (newVideoB) {
-        lastPickedVideoB = newVideoB; // Update last picked only when a new one is successfully picked
-    }
-    return newVideoB;
+  const newVideoB = pickRandomVideo(videoB_paths, lastPickedVideoB_Id);
+  if (newVideoB) {
+    lastPickedVideoB_Id = newVideoB;
+  }
+  return newVideoB;
 }
 
-/**
- * Plays a specific video B path. This is the unified function for playing/resuming video B.
- * Handles loading, playing, and setting currentVideoB.
- * @param {string} videoPath - The path to the video B file to play.
- */
-function playVideoB(videoPath) {
-    if (isEventEnded) {
-        console.log("playVideoB: Event ended, not playing B.");
-        return;
-    }
-    if (!videoPath) {
-        console.warn("playVideoB: No video path provided.");
-        return;
-    }
+function playVideoB(videoId) {
+  if (isEventEnded) return;
+  if (!videoId) {
+    console.warn("playVideoB called with no video ID.");
+    return;
+  }
 
-    if (displayVideo.src !== videoPath) {
-        displayVideo.src = videoPath;
-        displayVideo.load();
-        currentVideoB = videoPath; // This is now the truly current video B
-        console.log(`playVideoB: Setting video B src to ${videoPath}`);
-        displayVideo.currentTime = 0; // Always reset to 0 for a new video load
-    } else {
-        console.log(`playVideoB: Video B src already ${videoPath}.`);
-        // If it's the same video and it was paused, just play it from where it left off
-        if (displayVideo.paused) {
-            console.log('Resuming same Video B.');
-        }
-    }
-
-    displayVideo.loop = false; // Video B should not loop indefinitely, let it play to end
-    displayVideo.muted = false;
-
-    displayVideo.play().catch(error => {
-        console.warn('Autoplay prevented for video B. Error:', error);
-    });
-
-    console.log(`Playing Video B: ${videoPath}.`);
-    startTapTimeout(); // Always reset tap timeout when B is active
+  switchVideoVisibility(videoId, false); // false = unmute (Video B is the main focus)
+  currentVideoB_Id = videoId;
+  currentVideoA_Id = null; // We are now on a Video B
+  startTapTimeout();
 }
 
 function startTapTimeout() {
-    stopTapTimeout(); // Clear any existing inactivity timeout
-    tapTimeout = setTimeout(() => {
-        console.log('Tap inactivity detected. Switching to Video A fallback.');
-        isFallbackToVideoA = true;
-        playRandomVideoA();
-    }, TAP_TIMEOUT_DURATION);
-    console.log(`Tap timeout started for ${TAP_TIMEOUT_DURATION / 1000} seconds.`);
+  stopTapTimeout();
+  tapTimeout = setTimeout(() => {
+    console.log("Tap inactivity detected. Switching to Video A.");
+    playRandomVideoA();
+  }, TAP_TIMEOUT_DURATION);
 }
 
 function stopTapTimeout() {
-    if (tapTimeout) {
-        clearTimeout(tapTimeout);
-        tapTimeout = null;
-        console.log('Tap timeout stopped.');
-    }
+  if (tapTimeout) {
+    clearTimeout(tapTimeout);
+    tapTimeout = null;
+  }
 }
 
-// Called when a tap event comes from the server
 function advanceVideoFrame() {
-    if (isEventEnded || isMilestoneDisplaying) {
-        console.log('advanceVideoFrame: Event ended or milestone active, not processing.');
-        return;
-    }
+  if (isEventEnded || isMilestoneDisplaying) return; // Removed isPlayerReady check
 
-    // Always reset tap timeout on any advance signal
-    startTapTimeout();
+  startTapTimeout(); // Reset inactivity timer on every tap
 
-    let newVideoNeeded = false;
-    if (displayVideo.src.includes('video_a')) {
-        console.log('Advance signal received while video_a was playing. Picking a new video_b.');
-        newVideoNeeded = true;
-    } else if (currentVideoB && displayVideo.ended) { // If B was playing and finished
-        console.log('Advance signal received after video_b completed. Picking a new video_b.');
-        newVideoNeeded = true;
-    } else if (!currentVideoB) { // First time playing video B, or currentVideoB not set for some reason
-        console.log('First advance signal or currentVideoB not set. Picking a new video_b.');
-        newVideoNeeded = true;
-    }
+  const activePlayer = players.get(activeVideoId);
+  const playerState = activePlayer ? activePlayer.getPlayerState() : -1; // Get state of active player
 
-    if (newVideoNeeded) {
-        const newVideoBPath = getNewRandomVideoBPath();
-        if (newVideoBPath) {
-            playVideoB(newVideoBPath);
-        } else {
-            console.warn("No new video B available to switch to on advance signal.");
-        }
+  let newVideoNeeded = false;
+
+  // Switch to B if A is playing, or if B has ended
+  if (currentVideoA_Id || playerState === YT.PlayerState.ENDED) {
+    newVideoNeeded = true;
+  }
+
+  if (newVideoNeeded) {
+    const newVideoB_Id = getNewRandomVideoBPath();
+    if (newVideoB_Id) {
+      playVideoB(newVideoB_Id);
     } else {
-        // If already on video_b and not ended, just ensure it's playing
-        console.log(`Advance signal received while video_b (${currentVideoB}) was playing and not ended. Ensuring it continues.`);
-        displayVideo.play().catch(error => {
-            console.warn('Autoplay prevented for video B on continue. Error:', error);
-        });
+      console.warn("No new Video B available to switch to.");
     }
+  } else {
+    // If already on a video B that is paused/buffering, just play it
+    if (activePlayer && playerState !== YT.PlayerState.PLAYING) {
+      activePlayer.playVideo();
+    }
+  }
 }
 
-// --- UI and Socket Handlers ---
+// --- UI, Socket Handlers, and Other Functions ---
 
 function updateStatus(isConnected) {
-    if (isConnected) {
-        statusDot.classList.remove('disconnected', 'connecting');
-        statusDot.classList.add('connected');
-        statusText.textContent = 'Connected';
-    } else {
-        statusDot.classList.remove('connected', 'connecting');
-        statusDot.classList.add('disconnected');
-        statusText.textContent = 'Disconnected';
-    }
+  statusDot.className = "status-dot"; // Reset classes
+  if (isConnected) {
+    statusDot.classList.add("connected");
+    statusText.textContent = "Connected";
+  } else {
+    statusDot.classList.add("disconnected");
+    statusText.textContent = "Disconnected";
+  }
 }
 
-socket.on('connect', () => {
-    console.log('Connected to server (Main Display)');
-    socket.emit('registerMainDisplay');
-    updateStatus(true);
+socket.on("connect", () => {
+  console.log("Connected to server (Main Display)");
+  socket.emit("registerMainDisplay");
+  updateStatus(true);
 });
 
-socket.on('disconnect', () => {
-    console.log('Disconnected from server (Main Display)');
-    updateStatus(false);
-    resetDisplay(); // Reset state on disconnect
+socket.on("disconnect", () => {
+  console.log("Disconnected from server (Main Display)");
+  updateStatus(false);
+  resetDisplay();
 });
 
-socket.on('forceDisconnect', (message) => {
-    console.warn(`Forced disconnect received: ${message}`);
-    alert(`Server message: ${message}\nThis main display connection will be closed.`);
-    socket.disconnect(true); // Disconnect fully
-    resetDisplay();
+socket.on("forceDisconnect", (message) => {
+  alert(`Server message: ${message}\nThis connection will be closed.`);
+  socket.disconnect(true);
+  resetDisplay();
 });
 
-socket.on('status', (message) => {
-    console.log(`Server status: ${message}`);
-});
+socket.on("eventStatus", (status) => {
+  isEventStarted = status.started;
+  isEventEnded = status.eventEnded;
+  isMilestoneDisplaying = status.milestoneCurrentlyBeingDisplayed;
+  clientMilestonesReachedStatus = status.milestonesReachedStatus || [
+    false,
+    false,
+    false,
+  ];
 
-socket.on('eventStatus', (status) => {
-    isEventStarted = status.started;
-    isEventEnded = status.eventEnded;
-    isMilestoneDisplaying = status.milestoneCurrentlyBeingDisplayed;
-    clientMilestonesReachedStatus = status.milestonesReachedStatus || [false, false, false];
-
-    console.log('Received eventStatus:', status);
-
-    if (isEventEnded) {
-        triggerCelebration();
-        return;
-    }
-
-    if (isEventStarted) {
-        // Transition from initial content to video
-        if (initialContent.style.display !== 'none') {
-            initialContent.style.opacity = '0';
-            qrCode.style.display = 'none';
-            startButton.style.display = 'none';
-            setTimeout(() => {
-                initialContent.style.display = 'none';
-                videoContainer.classList.add('active');
-            }, 700);
-        }
-
-        resetButtonContainer.classList.add('active');
-
-        if (isMilestoneDisplaying) {
-            displayVideo.pause(); // Ensure video is paused
-            stopTapTimeout(); // Stop tap timeout during carousel
-
-            // Find the highest active milestone to show it if refreshing during celebration
-            let highestMilestoneIdx = -1;
-            for(let i = clientMilestonesReachedStatus.length - 1; i >= 0; i--) {
-                if(clientMilestonesReachedStatus[i]) {
-                    highestMilestoneIdx = i;
-                    break;
-                }
-            }
-            if (highestMilestoneIdx !== -1) {
-                lastTriggeredMilestoneIndex = highestMilestoneIdx;
-                showCarousel(lastTriggeredMilestoneIndex); // No auto-emitComplete here
-            } else {
-                console.warn("Milestone displaying, but no reached milestone found in status. Hiding carousel.");
-                hideCarousel(); // Fallback to ensure carousel is hidden
-            }
-            // Hide post-milestone buttons when carousel is active
-            postMilestoneControls.classList.remove('active');
-        } else { // No milestone currently displaying
-            hideCarousel(); // Ensure carousel is hidden
-            videoContainer.classList.remove('zoomed-out'); // Ensure video is not zoomed out
-
-            if (!status.goSent) { // Event started, but 'go' signal not sent yet
-                playRandomVideoA();
-            } else { // 'go' signal has been sent
-                // When eventStatus indicates goSent, ensure Video B is playing
-                // If it's the very first time, or A was playing, or B finished, pick new B
-                if (!currentVideoB || displayVideo.src.includes('video_a') || displayVideo.ended) {
-                    const newVideoBPath = getNewRandomVideoBPath();
-                    if (newVideoBPath) {
-                        playVideoB(newVideoBPath);
-                    } else {
-                        console.warn("eventStatus: No new video B available to switch to.");
-                    }
-                } else {
-                    console.log(`eventStatus: Already on Video B (${currentVideoB}). Ensuring it continues.`);
-                    displayVideo.play().catch(error => {
-                        console.warn('Autoplay prevented for video B on eventStatus continue. Error:', error);
-                    });
-                    startTapTimeout(); // Keep tap timeout running for inactivity detection
-                }
-            }
-            displayPostMilestoneButtons(lastTriggeredMilestoneIndex);
-        }
-    } else {
-        resetDisplay();
-    }
-});
-
-socket.on('goSignal', () => {
-    console.log('Received goSignal from audience.');
-    advanceVideoFrame(); // Delegate to shared logic
-});
-
-socket.on('milestoneReached', (milestoneIndex) => {
-    console.log(`Milestone ${milestoneIndex + 1} reached!`);
-    isMilestoneDisplaying = true; // Block video advancement
-    lastTriggeredMilestoneIndex = milestoneIndex; // Store for 'show again' button
-    displayVideo.pause(); // Pause video B for celebration
-    stopTapTimeout(); // Stop the inactivity timeout
-
-    // Hide post-milestone buttons immediately
-    postMilestoneControls.classList.remove('active');
-
-    videoContainer.classList.add('zoomed-out'); // Apply zoom-out animation
-    setTimeout(() => { // Short delay to allow zoom out to start before carousel appears
-        showCarousel(milestoneIndex); // No auto-emitComplete here
-    }, 500); // Adjust delay as needed
-});
-
-socket.on('advanceVideoFrame', () => {
-    advanceVideoFrame(); // Call the shared function
-});
-
-socket.on('endCelebration', () => {
-    console.log('Received endCelebration from server.');
-    isEventEnded = true;
+  if (isEventEnded) {
     triggerCelebration();
-});
+    return;
+  }
 
-socket.on('resetEvent', () => {
-    console.log('Received direct resetEvent from server.');
+  if (isEventStarted) {
+    if (initialContent.style.display !== "none") {
+      initialContent.style.opacity = "0";
+      setTimeout(() => {
+        initialContent.style.display = "none";
+        videoContainer.classList.add("active");
+      }, 700);
+    }
+    resetButtonContainer.classList.add("active");
+
+    if (isMilestoneDisplaying) {
+      const activePlayer = players.get(activeVideoId);
+      if (activePlayer) activePlayer.pauseVideo();
+      stopTapTimeout();
+      let highestMilestoneIdx = clientMilestonesReachedStatus.lastIndexOf(true);
+      if (highestMilestoneIdx !== -1) {
+        lastTriggeredMilestoneIndex = highestMilestoneIdx;
+        showCarousel(lastTriggeredMilestoneIndex);
+      }
+      postMilestoneControls.classList.remove("active");
+    } else {
+      hideCarousel();
+      videoContainer.classList.remove("zoomed-out");
+      if (!status.goSent) {
+        // If event started but go signal not sent yet, ensure Video A is playing
+        playRandomVideoA();
+      } else {
+        // If go signal is active, ensure a B video is playing
+        const activePlayer = players.get(activeVideoId);
+        if (
+          currentVideoA_Id || // If currently on A, switch to B
+          (activePlayer &&
+            activePlayer.getPlayerState() === YT.PlayerState.ENDED) // Or if current video ended
+        ) {
+          const newVideoB_Id = getNewRandomVideoBPath();
+          if (newVideoB_Id) playVideoB(newVideoB_Id);
+        } else {
+          if (activePlayer) activePlayer.playVideo(); // Resume if paused
+          startTapTimeout();
+        }
+      }
+      displayPostMilestoneButtons(lastTriggeredMilestoneIndex);
+    }
+  } else {
     resetDisplay();
+  }
 });
 
+socket.on("goSignal", (data) => {
+  console.log("Go signal received:", data);
+  if (!isEventStarted) {
+    isEventStarted = true;
+    initialContent.style.opacity = "0";
+    initialContent.style.pointerEvents = "none";
 
-// --- Button Event Listeners ---
-
-startButton.addEventListener('click', () => {
-    startButton.disabled = true;
-    socket.emit('startEvent');
+    setTimeout(() => {
+      initialContent.style.display = "none";
+      videoContainer.classList.add("active");
+      resetButtonContainer.classList.add("active");
+      statusText.textContent = "Event Live!";
+      statusDot.className = "status-dot connected";
+    }, 700); // Keep fade transition duration for initial content hide
+  }
+  // Advance video frame on subsequent go signals (taps)
+  advanceVideoFrame();
 });
 
-resetButton.addEventListener('click', () => {
-    socket.emit('resetEvent');
+socket.on("advanceVideoFrame", advanceVideoFrame);
+
+socket.on("milestoneReached", (milestoneIndex) => {
+  isMilestoneDisplaying = true;
+  lastTriggeredMilestoneIndex = milestoneIndex;
+  const activePlayer = players.get(activeVideoId);
+  if (activePlayer) activePlayer.pauseVideo();
+  stopTapTimeout();
+  postMilestoneControls.classList.remove("active");
+  videoContainer.classList.add("zoomed-out");
+  setTimeout(() => showCarousel(milestoneIndex), 500);
 });
 
+socket.on("endCelebration", () => {
+  isEventEnded = true;
+  triggerCelebration();
+});
 
-// --- Carousel Functions ---
+socket.on("resetEvent", resetDisplay);
+
+startButton.addEventListener("click", () => {
+  startButton.disabled = true;
+  socket.emit("startEvent");
+});
+
+resetButton.addEventListener("click", () => socket.emit("resetEvent"));
 
 function showCarousel(milestoneIndex) {
-    const images = milestoneImages[milestoneIndex];
-    if (!images || images.length === 0) {
-        console.warn(`No images found for milestone ${milestoneIndex}. Hiding carousel.`);
-        hideCarousel();
-        socket.emit('milestoneDisplayComplete'); // If no images, signal completion
-        return;
-    }
-
-    carouselSlides.innerHTML = ''; // Clear previous images
-    images.forEach((imgPath, idx) => {
-        const slideDiv = document.createElement('div');
-        slideDiv.classList.add('carousel-slide');
-        if (idx === 0) {
-            slideDiv.classList.add('active'); // First slide active
-        }
-        const img = document.createElement('img');
-        img.src = imgPath;
-        img.alt = `Milestone Image ${idx + 1}`;
-        slideDiv.appendChild(img);
-        carouselSlides.appendChild(slideDiv); // Append the slideDiv, not just the img
-    });
-
-
-    carouselTitle.textContent = milestoneHeadings[milestoneIndex];
-
-    // carouselTitle.textContent = `Milestone ${milestoneIndex + 1} Achieved!`;
-    carouselOverlay.classList.add('active');
-    closeCarouselButton.style.display = 'flex'; // Show close button
-    currentCarouselSlideIndex = 0;
-
-    clearInterval(carouselInterval);
-    if (images.length > 1) {
-        carouselInterval = setInterval(nextSlide, CAROUSEL_SLIDE_DURATION); // Change slide every X seconds
-    }
-    // REMOVED: setTimeout to hide carousel automatically. Now only closes with button click.
+  const images = milestoneImages[milestoneIndex];
+  if (!images || images.length === 0) {
+    hideCarousel();
+    socket.emit("milestoneDisplayComplete");
+    return;
+  }
+  carouselSlides.innerHTML = "";
+  images.forEach((imgPath, idx) => {
+    const slideDiv = document.createElement("div");
+    slideDiv.className = `carousel-slide ${idx === 0 ? "active" : ""}`;
+    slideDiv.innerHTML = `<img src="${imgPath}" alt="Milestone Image ${
+      idx + 1
+    }">`;
+    carouselSlides.appendChild(slideDiv);
+  });
+  carouselTitle.textContent = milestoneHeadings[milestoneIndex];
+  carouselOverlay.classList.add("active");
+  closeCarouselButton.style.display = "flex";
+  currentCarouselSlideIndex = 0;
+  clearInterval(carouselInterval);
+  if (images.length > 1) {
+    carouselInterval = setInterval(nextSlide, CAROUSEL_SLIDE_DURATION);
+  }
 }
 
 function nextSlide() {
-    const slides = document.querySelectorAll('.carousel-slide');
-    if (slides.length === 0) return;
-
-    slides[currentCarouselSlideIndex].classList.remove('active');
-    currentCarouselSlideIndex = (currentCarouselSlideIndex + 1) % slides.length;
-    slides[currentCarouselSlideIndex].classList.add('active');
+  const slides = document.querySelectorAll(".carousel-slide");
+  if (slides.length < 2) return;
+  slides[currentCarouselSlideIndex].classList.remove("active");
+  currentCarouselSlideIndex = (currentCarouselSlideIndex + 1) % slides.length;
+  slides[currentCarouselSlideIndex].classList.add("active");
 }
 
 function hideCarousel() {
-    carouselOverlay.classList.remove('active');
-    closeCarouselButton.style.display = 'none'; // Hide close button
-    videoContainer.classList.remove('zoomed-out');
-    clearInterval(carouselInterval);
-    // isMilestoneDisplaying will be reset by server after milestoneDisplayComplete emission
-    // Video will resume its tap-based playback after server updates isMilestoneDisplaying
+  carouselOverlay.classList.remove("active");
+  closeCarouselButton.style.display = "none";
+  videoContainer.classList.remove("zoomed-out");
+  clearInterval(carouselInterval);
 }
 
-// --- Functions for post-milestone buttons ---
 function displayPostMilestoneButtons(milestoneIdx) {
-    if (isEventEnded || isMilestoneDisplaying) { // If event ended or carousel is active, hide these buttons
-        postMilestoneControls.classList.remove('active');
-        return;
-    }
-
-    // Show Milestone Again button
-    if (milestoneIdx !== -1) {
-        showMilestoneButton.textContent = `Show Milestone ${milestoneIdx + 1} Again`;
-        showMilestoneButton.style.display = 'block';
-    } else {
-        showMilestoneButton.style.display = 'none';
-    }
-
-    // Jump to Next Milestone button
-    let nextMilestoneIdx = -1;
-    for (let i = 0; i < MILESTONE_THRESHOLDS.length; i++) {
-        if (!clientMilestonesReachedStatus[i]) { // Find the first untriggered milestone
-            nextMilestoneIdx = i;
-            break;
-        }
-    }
-
-    if (nextMilestoneIdx !== -1) {
-        jumpToNextMilestoneButton.textContent = `Jump to Milestone ${nextMilestoneIdx + 1}`;
-        jumpToNextMilestoneButton.style.display = 'block';
-    } else {
-        jumpToNextMilestoneButton.style.display = 'none'; // No more milestones to jump to
-    }
-
-    // Only activate if there's at least one button to show
-    if (showMilestoneButton.style.display === 'block' || jumpToNextMilestoneButton.style.display === 'block') {
-        postMilestoneControls.classList.add('active');
-    } else {
-        postMilestoneControls.classList.remove('active');
-    }
+  if (isEventEnded || isMilestoneDisplaying) {
+    postMilestoneControls.classList.remove("active");
+    return;
+  }
+  showMilestoneButton.style.display = milestoneIdx !== -1 ? "block" : "none";
+  if (milestoneIdx !== -1) {
+    showMilestoneButton.textContent = `Show Milestone ${
+      milestoneIdx + 1
+    } Again`;
+  }
+  let nextMilestoneIdx = clientMilestonesReachedStatus.indexOf(false);
+  jumpToNextMilestoneButton.style.display =
+    nextMilestoneIdx !== -1 ? "block" : "none";
+  if (nextMilestoneIdx !== -1) {
+    jumpToNextMilestoneButton.textContent = `Jump to Milestone ${
+      nextMilestoneIdx + 1
+    }`;
+  }
+  if (
+    showMilestoneButton.style.display === "block" ||
+    jumpToNextMilestoneButton.style.display === "block"
+  ) {
+    postMilestoneControls.classList.add("active");
+  } else {
+    postMilestoneControls.classList.remove("active");
+  }
 }
 
-// Event Listeners for post-milestone buttons and close button
-closeCarouselButton.addEventListener('click', () => {
-    hideCarousel();
-    socket.emit('milestoneDisplayComplete'); // Inform server that carousel is closed
-    // Server will update isMilestoneDisplaying to false, then eventStatus will be sent,
-    // which will then call displayPostMilestoneButtons
+closeCarouselButton.addEventListener("click", () => {
+  hideCarousel();
+  socket.emit("milestoneDisplayComplete");
 });
 
-showMilestoneButton.addEventListener('click', () => {
-    if (lastTriggeredMilestoneIndex !== -1) {
-        // We only show it again, so don't emit 'milestoneDisplayComplete' automatically
-        showCarousel(lastTriggeredMilestoneIndex);
-        postMilestoneControls.classList.remove('active'); // Hide buttons when carousel is opened
-    }
+showMilestoneButton.addEventListener("click", () => {
+  if (lastTriggeredMilestoneIndex !== -1) {
+    showCarousel(lastTriggeredMilestoneIndex);
+    postMilestoneControls.classList.remove("active");
+  }
 });
 
-jumpToNextMilestoneButton.addEventListener('click', () => {
-    console.log('Attempting to jump to next milestone...');
-    if (!isMilestoneDisplaying && !isEventEnded) { // Cannot jump if a celebration is already active or event ended
-        socket.emit('jumpToNextMilestone');
-        postMilestoneControls.classList.remove('active'); // Hide buttons once jump is initiated
-    } else {
-        console.warn('Cannot jump to next milestone: milestone active or event ended.');
-    }
+jumpToNextMilestoneButton.addEventListener("click", () => {
+  if (!isMilestoneDisplaying && !isEventEnded) {
+    socket.emit("jumpToNextMilestone");
+    postMilestoneControls.classList.remove("active");
+  }
 });
 
-
-// --- Final Celebration Function ---
 function triggerCelebration() {
-    console.log('Triggering final celebration.');
-    displayVideo.pause();
-    displayVideo.src = ''; // Clear video
-    videoContainer.classList.remove('active', 'zoomed-out');
-    initialContent.style.display = 'none';
-    resetButtonContainer.classList.remove('active');
-    postMilestoneControls.classList.remove('active'); // Ensure these are hidden
-    hideCarousel(); // Ensure carousel is hidden
+  console.log("Triggering final celebration.");
+  // Stop all players
+  players.forEach((player) => {
+    if (player && typeof player.stopVideo === "function") {
+      player.stopVideo();
+      player.mute();
+    }
+  });
+  // Hide all player containers
+  document.querySelectorAll(".player-iframe-wrapper").forEach((div) => {
+    div.classList.remove("active");
+  });
+  activeVideoId = null;
 
-    celebrationOverlay.classList.add('active'); // Show celebration overlay
-    statusText.textContent = 'Event Ended!'; // Update status
-    statusDot.classList.remove('connected', 'connecting', 'disconnected');
-    statusDot.classList.add('success'); // Green dot for celebration
-
-    stopTapTimeout(); // Ensure no lingering timeouts
+  videoContainer.classList.remove("active", "zoomed-out");
+  resetButtonContainer.classList.remove("active");
+  postMilestoneControls.classList.remove("active");
+  hideCarousel();
+  celebrationOverlay.classList.add("active");
+  statusText.textContent = "Event Ended!";
+  statusDot.className = "status-dot success";
+  stopTapTimeout();
 }
 
-
-// --- Reset Function ---
 function resetDisplay() {
-    console.log('Resetting display.');
-    displayVideo.pause();
-    displayVideo.currentTime = 0;
-    displayVideo.src = '';
-    displayVideo.muted = true;
-    displayVideo.loop = false;
-    displayVideo.onended = null;
+  console.log("Resetting display.");
+  // Stop and hide all players
+  players.forEach((player) => {
+    if (player && typeof player.stopVideo === "function") {
+      player.stopVideo();
+      player.mute();
+    }
+  });
+  // Hide all player containers
+  document.querySelectorAll(".player-iframe-wrapper").forEach((div) => {
+    div.classList.remove("active");
+  });
+  activeVideoId = null; // No active video after reset
 
-    isEventStarted = false;
-    isEventEnded = false;
-    isMilestoneDisplaying = false;
-    lastTriggeredMilestoneIndex = -1;
-    clientMilestonesReachedStatus = [false, false, false];
-    currentVideoA = null;
-    currentVideoB = null;
-    lastPickedVideoA = null;
-    lastPickedVideoB = null;
-    isFallbackToVideoA = false;
-
-    hideCarousel();
-    celebrationOverlay.classList.remove('active');
-
-    videoContainer.classList.remove('active', 'zoomed-out');
-    initialContent.style.display = 'flex';
-    initialContent.style.opacity = '1';
-    qrCode.style.display = 'block';
-    startButton.style.display = 'block';
-    startButton.disabled = false;
-    resetButtonContainer.classList.remove('active');
-    postMilestoneControls.classList.remove('active');
-    statusText.textContent = 'Connected';
-
-    stopTapTimeout(); // Clear any existing tap timeout
+  isEventStarted = false;
+  isEventEnded = false;
+  isMilestoneDisplaying = false;
+  lastTriggeredMilestoneIndex = -1;
+  clientMilestonesReachedStatus.fill(false);
+  currentVideoA_Id = null;
+  currentVideoB_Id = null;
+  lastPickedVideoA_Id = null;
+  lastPickedVideoB_Id = null;
+  hideCarousel();
+  celebrationOverlay.classList.remove("active");
+  videoContainer.classList.remove("active", "zoomed-out");
+  initialContent.style.display = "flex";
+  initialContent.style.opacity = "1";
+  startButton.disabled = false;
+  resetButtonContainer.classList.remove("active");
+  postMilestoneControls.classList.remove("active");
+  if (socket.connected) {
+    updateStatus(true);
+  }
+  stopTapTimeout();
 }
 
-// Initial state
-updateStatus(false);
-resetDisplay(); // Call reset to ensure initial state is clean
+// Initial Call
+updateStatus(socket.connected);
