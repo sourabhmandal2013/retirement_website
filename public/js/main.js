@@ -79,7 +79,7 @@ let carouselInterval;
 let tapTimeout = null;
 
 let clientMilestonesReachedStatus = [false, false, false];
-const MILESTONE_THRESHOLDS = [33, 66, 100]; // Must match server.js
+const MILESTONE_THRESHOLDS = [25, 50, 75]; // Must match server.js
 
 // --- YouTube Player Variables ---
 const players = new Map(); // Stores all YT.Player instances keyed by videoId
